@@ -1,6 +1,7 @@
 import { Paper, Typography } from "@mui/material";
 import DiffWidget from "./DiffWidget";
 import TypingDots from "./TypingDots";
+import MarkdownContent from "./MarkdownContent";
 import type { Edit } from "./DiffWidget";
 
 export type { Edit };
@@ -33,16 +34,21 @@ export default function ChatMessageItem({ msg, isStreamingLast }: {
       </Typography>
       {msg.role === "user_edit" ? (
         <DiffWidget diff={msg.diff} failed={false} />
-      ) : (
+      ) : msg.role === "assistant" ? (
         <>
-          <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-            {msg.content}{isStreamingLast && !msg.content && <TypingDots />}
-          </Typography>
+          {msg.content
+            ? <MarkdownContent content={msg.content} />
+            : isStreamingLast && <TypingDots />
+          }
           {isStreamingLast && msg.content && <TypingDots />}
-          {msg.role === "assistant" && msg.edits?.map((edit, j) => (
+          {msg.edits?.map((edit, j) => (
             <DiffWidget key={j} diff={edit.diff} failed={edit.failed} />
           ))}
         </>
+      ) : (
+        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          {msg.content}
+        </Typography>
       )}
     </Paper>
   );
