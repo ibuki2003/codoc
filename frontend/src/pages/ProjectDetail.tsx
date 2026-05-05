@@ -15,6 +15,9 @@ import ViewColumnIcon from "@mui/icons-material/ViewColumn";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import {
   getProject, updateContent, chatStream, listModels, clearHistory,
   type Project, type ConversationEntry, type StreamChunk, type ModelInfo,
@@ -121,7 +124,10 @@ function MarkdownPreview({ content }: { content: string }) {
       "& hr": { borderColor: "divider", my: 2 },
       "& img": { maxWidth: "100%" },
     }}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+      >{content}</ReactMarkdown>
     </Box>
   );
 }
