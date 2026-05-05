@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  Box, Button, CircularProgress, FormControl,
-  IconButton, InputLabel, MenuItem, Paper, Select, TextField,
+  Box, CircularProgress, FormControl,
+  IconButton, InputLabel, MenuItem, Select, TextField,
   ToggleButton, ToggleButtonGroup, Toolbar, Tooltip, Typography,
   useMediaQuery, useTheme,
 } from "@mui/material";
@@ -13,129 +13,25 @@ import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import SendIcon from "@mui/icons-material/Send";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
-import "katex/dist/katex.min.css";
 import {
   getProject, updateContent, chatStream, listModels, clearHistory,
   type Project, type ConversationEntry, type StreamChunk, type ModelInfo,
 } from "../api";
+import MarkdownPreview from "../components/MarkdownPreview";
+import ChatMessageItem from "../components/ChatMessageItem";
+import type { ChatMessage } from "../components/ChatMessageItem";
 
 const AUTOSAVE_DELAY = 1500;
 const CHAT_WIDTH_DEFAULT = 380;
 const CHAT_WIDTH_MIN = 240;
 const CHAT_WIDTH_MAX = 700;
 
-type Edit = { diff: string; failed: boolean };
-
-type ChatMessage =
-  | { role: "user"; content: string }
-  | { role: "assistant"; content: string; edits?: Edit[] }
-  | { role: "user_edit"; diff: string };
-
 type ViewMode = "editor" | "split" | "preview";
-
-function parseDiffStats(diff: string) {
-  const lines = diff.split("\n");
-  const added = lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length;
-  const removed = lines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length;
-  return { added, removed };
-}
-
-function TypingDots() {
-  return (
-    <Box component="span" sx={{
-      display: "inline-flex", gap: "3px", alignItems: "center", ml: 0.5, verticalAlign: "middle",
-      "& span": {
-        width: 5, height: 5, borderRadius: "50%", bgcolor: "text.secondary",
-        animation: "typing-dot 1.2s ease-in-out infinite",
-        "&:nth-of-type(2)": { animationDelay: "0.2s" },
-        "&:nth-of-type(3)": { animationDelay: "0.4s" },
-      },
-      "@keyframes typing-dot": {
-        "0%, 80%, 100%": { opacity: 0.2, transform: "scale(0.8)" },
-        "40%": { opacity: 1, transform: "scale(1)" },
-      },
-    }}>
-      <span /><span /><span />
-    </Box>
-  );
-}
-
-function DiffWidget({ diff, failed }: { diff: string; failed: boolean }) {
-  const [expanded, setExpanded] = useState(false);
-  const { added, removed } = parseDiffStats(diff);
-  return (
-    <Box sx={{ mt: 0.5 }}>
-      <Button
-        size="small"
-        variant="outlined"
-        color={failed ? "error" : "inherit"}
-        onClick={() => setExpanded((v) => !v)}
-        sx={{ fontFamily: "monospace", fontSize: "0.7rem", py: 0, px: 0.75, minWidth: 0 }}
-      >
-        {failed ? `edit failed (-${removed} +${added})` : `edit -${removed} +${added}`}
-      </Button>
-      {expanded && (
-        <Box
-          component="pre"
-          sx={{
-            mt: 0.5, p: 1, fontSize: "0.7rem", fontFamily: "monospace",
-            overflowX: "auto", bgcolor: "grey.900", color: "grey.300", borderRadius: 1,
-            "& .add": { color: "#4caf50" },
-            "& .del": { color: "#f44336" },
-          }}
-        >
-          {diff.split("\n").map((line, i) => (
-            <span
-              key={i}
-              className={line.startsWith("+") && !line.startsWith("+++") ? "add" : line.startsWith("-") && !line.startsWith("---") ? "del" : ""}
-            >
-              {line}{"\n"}
-            </span>
-          ))}
-        </Box>
-      )}
-    </Box>
-  );
-}
-
-function MarkdownPreview({ content }: { content: string }) {
-  return (
-    <Box sx={{
-      flex: 1, overflow: "auto", p: 1.5,
-      border: 1, borderColor: "divider", borderRadius: 1,
-      "& h1,& h2,& h3,& h4,& h5,& h6": { mt: 2, mb: 1, fontWeight: 600, lineHeight: 1.3 },
-      "& h1": { fontSize: "1.6rem", borderBottom: 1, borderColor: "divider", pb: 0.5 },
-      "& h2": { fontSize: "1.3rem", borderBottom: 1, borderColor: "divider", pb: 0.5 },
-      "& h3": { fontSize: "1.1rem" },
-      "& p": { my: 1, lineHeight: 1.7 },
-      "& ul,& ol": { pl: 3, my: 1 },
-      "& li": { my: 0.25 },
-      "& code": { fontFamily: "monospace", fontSize: "0.85em", bgcolor: "grey.900", color: "grey.300", px: 0.5, py: 0.1, borderRadius: 0.5 },
-      "& pre": { bgcolor: "grey.900", color: "grey.300", p: 1.5, borderRadius: 1, overflowX: "auto", my: 1, "& code": { bgcolor: "transparent", p: 0 } },
-      "& blockquote": { borderLeft: 3, borderColor: "divider", pl: 1.5, ml: 0, color: "text.secondary", my: 1 },
-      "& a": { color: "primary.main" },
-      "& table": { borderCollapse: "collapse", width: "100%", my: 1 },
-      "& th,& td": { border: 1, borderColor: "divider", px: 1, py: 0.5 },
-      "& th": { bgcolor: "action.hover", fontWeight: 600 },
-      "& hr": { borderColor: "divider", my: 2 },
-      "& img": { maxWidth: "100%" },
-    }}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
-      >{content}</ReactMarkdown>
-    </Box>
-  );
-}
 
 function entryToChat(e: ConversationEntry): ChatMessage | null {
   if (e.role === "user") return { role: "user", content: e.content };
   if (e.role === "assistant") {
-    const edits: Edit[] = e.tool_calls
+    const edits = e.tool_calls
       .filter((tc) => tc.tool_name === "edit_document")
       .map((tc) => {
         let diff = "";
@@ -396,43 +292,13 @@ export default function ProjectDetail() {
             </Box>
 
             <Box sx={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 1, mb: 1 }}>
-              {chatMessages.map((msg, i) => {
-                const isStreamingLast = streaming && i === chatMessages.length - 1 && msg.role === "assistant";
-                return (
-                  <Paper
-                    key={i}
-                    elevation={0}
-                    sx={{
-                      p: 1,
-                      bgcolor:
-                        msg.role === "user" ? "primary.light" :
-                        msg.role === "user_edit" ? "action.hover" :
-                        "background.paper",
-                      border: 1,
-                      borderColor: "divider",
-                      alignSelf: (msg.role === "user" || msg.role === "user_edit") ? "flex-end" : "flex-start",
-                      maxWidth: "90%",
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      {msg.role === "user" ? "You" : msg.role === "assistant" ? "Assistant" : "Edited"}
-                    </Typography>
-                    {msg.role === "user_edit" ? (
-                      <DiffWidget diff={msg.diff} failed={false} />
-                    ) : (
-                      <>
-                        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                          {msg.content}{isStreamingLast && !msg.content && <TypingDots />}
-                        </Typography>
-                        {isStreamingLast && msg.content && <TypingDots />}
-                        {msg.role === "assistant" && msg.edits?.map((edit, j) => (
-                          <DiffWidget key={j} diff={edit.diff} failed={edit.failed} />
-                        ))}
-                      </>
-                    )}
-                  </Paper>
-                );
-              })}
+              {chatMessages.map((msg, i) => (
+                <ChatMessageItem
+                  key={i}
+                  msg={msg}
+                  isStreamingLast={streaming && i === chatMessages.length - 1 && msg.role === "assistant"}
+                />
+              ))}
               <div ref={chatEndRef} />
             </Box>
 
