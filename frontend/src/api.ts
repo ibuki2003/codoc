@@ -25,6 +25,7 @@ export type Project = {
   content: string;
   lastSyncedContent: string;
   model?: string;
+  localInstruction?: string;
   history: ConversationEntry[];
   createdAt: string;
   updatedAt: string;

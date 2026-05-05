@@ -10,8 +10,17 @@ import { applyDiff } from "@openai/agents-core";
 
 const app = new Hono();
 
-function buildMessages(history: ConversationEntry[], currentContent: string, userMessage: string, systemPrompt: string): Message[] {
-  const msgs: Message[] = [{ role: "system", content: systemPrompt }];
+function buildMessages(
+  history: ConversationEntry[],
+  currentContent: string,
+  userMessage: string,
+  systemPrompt: string,
+  localInstruction?: string,
+): Message[] {
+  const fullPrompt = localInstruction
+    ? `${systemPrompt}\n\n${localInstruction}`
+    : systemPrompt;
+  const msgs: Message[] = [{ role: "system", content: fullPrompt }];
 
   // Insert current document right after the last edit so its position stays
   // stable as the conversation grows (good for prefix cache).
@@ -163,7 +172,7 @@ app.post("/:id/chat", async (c) => {
       },
     };
 
-    const messages = buildMessages(project.history, project.content, body.message, systemPrompt);
+    const messages = buildMessages(project.history, project.content, body.message, systemPrompt, project.localInstruction);
 
     console.log("[chat] starting LLM, model:", modelConfig.name, "messages:", messages.length);
     for await (const item of run_llm(messages, modelConfig, tools)) {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  Box, CircularProgress, FormControl,
+  Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControl,
   IconButton, InputLabel, MenuItem, Select, TextField,
   ToggleButton, ToggleButtonGroup, Toolbar, Tooltip, Typography,
   useMediaQuery, useTheme,
@@ -13,6 +13,7 @@ import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import SendIcon from "@mui/icons-material/Send";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import TuneIcon from "@mui/icons-material/Tune";
 import {
   getProject, updateContent, patchProject, chatStream, listModels, clearHistory,
   type Project, type ConversationEntry, type StreamChunk, type ModelInfo,
@@ -62,6 +63,8 @@ export default function ProjectDetail() {
   const [modelSynced, setModelSynced] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState("");
+  const [localInstructionOpen, setLocalInstructionOpen] = useState(false);
+  const [localInstructionDraft, setLocalInstructionDraft] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("editor");
   const [chatWidth, setChatWidth] = useState(CHAT_WIDTH_DEFAULT);
   const [chatOpenOverride, setChatOpenOverride] = useState<boolean | null>(null);
@@ -147,6 +150,13 @@ export default function ProjectDetail() {
     await patchProject(id, { title: titleInput.trim() });
     setProject((p) => p ? { ...p, title: titleInput.trim() } : p);
     setEditingTitle(false);
+  };
+
+  const handleLocalInstructionSave = async () => {
+    if (!id) return;
+    await patchProject(id, { localInstruction: localInstructionDraft });
+    setProject((p) => p ? { ...p, localInstruction: localInstructionDraft } : p);
+    setLocalInstructionOpen(false);
   };
 
   const handleClearHistory = async () => {
@@ -255,6 +265,15 @@ export default function ProjectDetail() {
             <Typography variant="subtitle2" color="text.secondary" sx={{ flex: 1 }}>
               Document
             </Typography>
+            <Tooltip title="Project instruction">
+              <IconButton
+                size="small"
+                onClick={() => { setLocalInstructionDraft(project.localInstruction ?? ""); setLocalInstructionOpen(true); }}
+                color={project.localInstruction ? "primary" : "default"}
+              >
+                <TuneIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <ToggleButtonGroup
               size="small"
               exclusive
@@ -369,6 +388,29 @@ export default function ProjectDetail() {
           </Box>
         )}
       </Box>
+
+      <Dialog open={localInstructionOpen} onClose={() => setLocalInstructionOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Project Instruction</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Appended to the global system instruction for this project only.
+          </Typography>
+          <TextField
+            multiline
+            fullWidth
+            minRows={6}
+            maxRows={16}
+            value={localInstructionDraft}
+            onChange={(e) => setLocalInstructionDraft(e.target.value)}
+            placeholder="Enter project-specific instruction…"
+            slotProps={{ input: { style: { fontFamily: "monospace", fontSize: "0.85rem" } } }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLocalInstructionOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleLocalInstructionSave}>Save</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
