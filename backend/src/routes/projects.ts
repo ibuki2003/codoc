@@ -18,6 +18,7 @@ app.post("/", async (c) => {
     _id: new ObjectId(),
     title: body.title,
     content: "",
+    lastSyncedContent: "",
     history: [],
     createdAt: now,
     updatedAt: now,
@@ -34,11 +35,18 @@ app.get("/:id", async (c) => {
 
 app.patch("/:id", async (c) => {
   const id = c.req.param("id");
-  const body = await c.req.json<{ content: string }>();
-  const result = await projects.updateOne(
-    { _id: new ObjectId(id) },
-    { $set: { content: body.content, updatedAt: new Date() } },
-  );
+  const body = await c.req.json<{
+    content?: string;
+    title?: string;
+    model?: string;
+    localInstruction?: string;
+  }>();
+  const $set: Record<string, unknown> = { updatedAt: new Date() };
+  if (body.content !== undefined) $set.content = body.content;
+  if (body.title !== undefined) $set.title = body.title;
+  if (body.model !== undefined) $set.model = body.model;
+  if (body.localInstruction !== undefined) $set.localInstruction = body.localInstruction;
+  const result = await projects.updateOne({ _id: new ObjectId(id) }, { $set });
   if (result.matchedCount === 0) return c.json({ error: "Not found" }, 404);
   return c.json({ ok: true });
 });

@@ -14,7 +14,7 @@ import SendIcon from "@mui/icons-material/Send";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
-  getProject, updateContent, chatStream, listModels, clearHistory,
+  getProject, updateContent, patchProject, chatStream, listModels, clearHistory,
   type Project, type ConversationEntry, type StreamChunk, type ModelInfo,
 } from "../api";
 import MarkdownPreview from "../components/MarkdownPreview";
@@ -59,6 +59,7 @@ export default function ProjectDetail() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [model, setModel] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [modelSynced, setModelSynced] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("editor");
   const [chatWidth, setChatWidth] = useState(CHAT_WIDTH_DEFAULT);
   const [chatOpenOverride, setChatOpenOverride] = useState<boolean | null>(null);
@@ -88,11 +89,16 @@ export default function ProjectDetail() {
   }, [chatWidth]);
 
   useEffect(() => {
-    listModels().then((ms) => {
-      setModels(ms);
-      if (ms.length > 0) setModel(ms[0].id);
-    });
+    listModels().then((ms) => { setModels(ms); });
   }, []);
+
+  // Set model once both project and models are loaded, using project's saved model as default
+  useEffect(() => {
+    if (!modelSynced && models.length > 0 && project) {
+      setModel(project.model ?? models[0].id);
+      setModelSynced(true);
+    }
+  }, [models, project, modelSynced]);
 
   const loadProject = useCallback(async () => {
     if (!id) return;
@@ -278,7 +284,10 @@ export default function ProjectDetail() {
               </Typography>
               <FormControl size="small" sx={{ minWidth: 140 }}>
                 <InputLabel>Model</InputLabel>
-                <Select value={model} label="Model" onChange={(e) => setModel(e.target.value)}>
+                <Select value={model} label="Model" onChange={(e) => {
+                  setModel(e.target.value);
+                  if (id) patchProject(id, { model: e.target.value });
+                }}>
                   {models.map((m) => (
                     <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
                   ))}

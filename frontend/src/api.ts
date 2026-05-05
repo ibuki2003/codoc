@@ -24,6 +24,7 @@ export type Project = {
   title: string;
   content: string;
   lastSyncedContent: string;
+  model?: string;
   history: ConversationEntry[];
   createdAt: string;
   updatedAt: string;
@@ -61,12 +62,21 @@ export async function getProject(id: string): Promise<Project> {
   return res.json();
 }
 
-export async function updateContent(id: string, content: string): Promise<void> {
+export async function patchProject(id: string, patch: {
+  content?: string;
+  title?: string;
+  model?: string;
+  localInstruction?: string;
+}): Promise<void> {
   await fetch(`${BASE}/projects/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify(patch),
   });
+}
+
+export async function updateContent(id: string, content: string): Promise<void> {
+  await patchProject(id, { content });
 }
 
 export async function deleteProject(id: string): Promise<void> {

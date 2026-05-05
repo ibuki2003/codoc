@@ -27,7 +27,8 @@ export type Project = {
   _id: ObjectId;
   title: string;
   content: string;
-  lastSyncedContent: string;
+  lastSyncedContent?: string;
+  model?: string;
   history: ConversationEntry[];
   createdAt: Date;
   updatedAt: Date;
