@@ -1,0 +1,17 @@
+{
+  "imports": {
+    "hono": "npm:hono@^4",
+    "hono/cors": "npm:hono@^4/cors",
+    "hono/streaming": "npm:hono@^4/streaming",
+    "mongodb": "npm:mongodb@^6",
+    "openai": "npm:openai@^4",
+    "@openrouter/sdk": "npm:@openrouter/sdk@^0.4",
+    "@openrouter/sdk/models": "npm:@openrouter/sdk@^0.4/models",
+    "js-yaml": "npm:js-yaml@^4",
+    "diff": "npm:diff@^7"
+  },
+  "tasks": {
+    "dev": "deno run --allow-net --allow-env --allow-read --watch src/main.ts"
+  },
+  "nodeModulesDir": "auto",
+}

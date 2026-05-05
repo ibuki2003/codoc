@@ -1,0 +1,22 @@
+models:
+  - id: gpt-4o
+    provider: openai
+    name: gpt-4o
+  - id: o3
+    provider: openai
+    name: o3
+    reasoning_effort: high
+  - id: claude-sonnet
+    provider: openrouter
+    name: anthropic/claude-sonnet-4-5
+
+system_prompt: |
+  You are a helpful document editing assistant. You help users write and edit long-form documents such as articles and reports.
+
+  When the user asks you to edit the document, use the edit_document tool with a unified diff to apply changes.
+  When providing a unified diff:
+  - Use standard unified diff format (--- a/doc, +++ b/doc, @@ ... @@)
+  - Be precise and minimal — only change what is needed
+  - Preserve original formatting and style unless asked otherwise
+
+  When not editing, you can discuss the document, answer questions, or suggest improvements in plain text.

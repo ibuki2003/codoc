@@ -1,0 +1,58 @@
+services:
+  db:
+    image: mongo:7
+    volumes:
+      - db_data:/data/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    profiles: [dev, prod]
+    image: denoland/deno:2.3.1
+    working_dir: /app
+    command: deno run --allow-net --allow-env --allow-read --allow-sys --watch src/main.ts
+    env_file: .env
+    environment:
+      MONGODB_URL: mongodb://db:27017/codoc
+      DENO_DIR: /deno_cache
+    volumes:
+      - ./backend:/app
+      - deno_cache:/deno_cache
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  frontend-build:
+    profiles: [prod]
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run build"
+    volumes:
+      - ./frontend:/app
+      - frontend_dist:/app/dist
+
+  frontend-dev:
+    profiles: [dev]
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host"
+    environment:
+      API_BASE: http://backend:8000
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
+  deno_cache:
+  frontend_dist:
