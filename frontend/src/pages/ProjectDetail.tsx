@@ -29,6 +29,26 @@ function parseDiffStats(diff: string) {
   return { added, removed };
 }
 
+function TypingDots() {
+  return (
+    <Box component="span" sx={{
+      display: "inline-flex", gap: "3px", alignItems: "center", ml: 0.5, verticalAlign: "middle",
+      "& span": {
+        width: 5, height: 5, borderRadius: "50%", bgcolor: "text.secondary",
+        animation: "typing-dot 1.2s ease-in-out infinite",
+        "&:nth-of-type(2)": { animationDelay: "0.2s" },
+        "&:nth-of-type(3)": { animationDelay: "0.4s" },
+      },
+      "@keyframes typing-dot": {
+        "0%, 80%, 100%": { opacity: 0.2, transform: "scale(0.8)" },
+        "40%": { opacity: 1, transform: "scale(1)" },
+      },
+    }}>
+      <span /><span /><span />
+    </Box>
+  );
+}
+
 function DiffWidget({ diff, failed }: { diff: string; failed: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const { added, removed } = parseDiffStats(diff);
@@ -48,7 +68,7 @@ function DiffWidget({ diff, failed }: { diff: string; failed: boolean }) {
           component="pre"
           sx={{
             mt: 0.5, p: 1, fontSize: "0.7rem", fontFamily: "monospace",
-            overflowX: "auto", bgcolor: "grey.900", borderRadius: 1,
+            overflowX: "auto", bgcolor: "grey.900", color: "grey.300", borderRadius: 1,
             "& .add": { color: "#4caf50" },
             "& .del": { color: "#f44336" },
           }}
@@ -220,8 +240,13 @@ export default function ProjectDetail() {
             fullWidth
             value={content}
             onChange={(e) => handleContentChange(e.target.value)}
-            sx={{ flex: 1, "& .MuiInputBase-root": { height: "100%", alignItems: "flex-start" } }}
-            inputProps={{ style: { fontFamily: "monospace", height: "100%", overflowY: "auto" } }}
+            sx={{
+              flex: 1,
+              "& .MuiInputBase-root": { height: "100%", alignItems: "flex-start", overflow: "hidden" },
+              "& .MuiInputBase-input": { height: "100% !important", overflowY: "auto !important" },
+            }}
+            inputProps={{ style: { fontFamily: "monospace" } }}
+            disabled={streaming}
           />
         </Box>
 
@@ -249,41 +274,43 @@ export default function ProjectDetail() {
           </Box>
 
           <Box sx={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 1, mb: 1 }}>
-            {chatMessages.map((msg, i) => (
-              <Paper
-                key={i}
-                elevation={0}
-                sx={{
-                  p: 1,
-                  bgcolor:
-                    msg.role === "user" ? "primary.light" :
-                    msg.role === "user_edit" ? "action.hover" :
-                    "background.paper",
-                  border: 1,
-                  borderColor: "divider",
-                  alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
-                  maxWidth: "90%",
-                }}
-              >
-                <Typography variant="caption" color="text.secondary" display="block">
-                  {msg.role === "user" ? "You" : msg.role === "assistant" ? "Assistant" : "Edited"}
-                </Typography>
-                {msg.role === "user_edit" ? (
-                  <DiffWidget diff={msg.diff} failed={false} />
-                ) : (
-                  <>
-                    {msg.content && (
+            {chatMessages.map((msg, i) => {
+              const isStreamingLast = streaming && i === chatMessages.length - 1 && msg.role === "assistant";
+              return (
+                <Paper
+                  key={i}
+                  elevation={0}
+                  sx={{
+                    p: 1,
+                    bgcolor:
+                      msg.role === "user" ? "primary.light" :
+                      msg.role === "user_edit" ? "action.hover" :
+                      "background.paper",
+                    border: 1,
+                    borderColor: "divider",
+                    alignSelf: (msg.role === "user" || msg.role === "user_edit") ? "flex-end" : "flex-start",
+                    maxWidth: "90%",
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {msg.role === "user" ? "You" : msg.role === "assistant" ? "Assistant" : "Edited"}
+                  </Typography>
+                  {msg.role === "user_edit" ? (
+                    <DiffWidget diff={msg.diff} failed={false} />
+                  ) : (
+                    <>
                       <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                        {msg.content}
+                        {msg.content}{isStreamingLast && !msg.content && <TypingDots />}
                       </Typography>
-                    )}
-                    {msg.role === "assistant" && msg.edits?.map((edit, j) => (
-                      <DiffWidget key={j} diff={edit.diff} failed={edit.failed} />
-                    ))}
-                  </>
-                )}
-              </Paper>
-            ))}
+                      {isStreamingLast && msg.content && <TypingDots />}
+                      {msg.role === "assistant" && msg.edits?.map((edit, j) => (
+                        <DiffWidget key={j} diff={edit.diff} failed={edit.failed} />
+                      ))}
+                    </>
+                  )}
+                </Paper>
+              );
+            })}
             <div ref={chatEndRef} />
           </Box>
 
@@ -295,6 +322,10 @@ export default function ProjectDetail() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
+                // keyCode is deprecated but still widely used for detecting IME composition state
+                if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) {
+                  return;
+                }
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
               }}
               disabled={streaming}
@@ -302,7 +333,7 @@ export default function ProjectDetail() {
               maxRows={4}
             />
             <IconButton color="primary" onClick={handleSend} disabled={streaming || !input.trim()}>
-              {streaming ? <CircularProgress size={24} /> : <SendIcon />}
+              <SendIcon />
             </IconButton>
           </Box>
         </Box>
