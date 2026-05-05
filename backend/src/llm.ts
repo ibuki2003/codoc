@@ -47,20 +47,18 @@ async function* run_responses_api(
     ? Object.values(tools).map((t) => convert_tool_to_responses(t.schema))
     : undefined;
 
-  const systemMsg = messages.find((m) => m.role === "system");
-  const nonSystemMsgs = messages.filter((m) => m.role !== "system");
-
-  const input: OpenAI.Responses.ResponseInputItem[] = nonSystemMsgs.map((m) => ({
+  const instructions = messages[0]?.role === "system" ? messages[0].content : "";
+  const input: OpenAI.Responses.ResponseInputItem[] = messages.slice(instructions ? 1 : 0).map((m) => ({
     type: "message" as const,
-    role: m.role as "user" | "assistant",
+    role: m.role,
     content: m.content,
   }));
 
   const response = await openai_client.responses.create({
-    instructions: systemMsg?.content ?? "",
+    instructions,
     input,
     model: modelConfig.name,
-    store: false,
+    store: true,
     ...(tool_schemas ? { parallel_tool_calls: false, tool_choice: "auto", tools: tool_schemas } : {}),
     ...(modelConfig.reasoning_effort
       ? { reasoning: { effort: modelConfig.reasoning_effort, summary: "auto" } }
@@ -108,6 +106,7 @@ async function* run_chat_completion(
     const res = await openrouter_client.chat.send({
       model: modelConfig.name,
       messages: chatMessages,
+      reasoning: { effort: modelConfig.reasoning_effort },
       ...(tool_schemas ? { tools: tool_schemas, toolChoice: "auto" } : {}),
       stream: false,
     });

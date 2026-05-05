@@ -23,6 +23,7 @@ services:
     volumes:
       - ./backend:/app
       - deno_cache:/deno_cache
+      - backend_node_modules:/app/node_modules
     depends_on:
       db:
         condition: service_healthy
@@ -36,6 +37,7 @@ services:
     command: sh -c "npm ci && npm run build"
     volumes:
       - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
       - frontend_dist:/app/dist
 
   frontend-dev:
@@ -47,6 +49,7 @@ services:
       API_BASE: http://backend:8000
     volumes:
       - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
     ports:
       - "5173:5173"
     depends_on:
@@ -55,4 +58,6 @@ services:
 volumes:
   db_data:
   deno_cache:
+  backend_node_modules:
+  frontend_node_modules:
   frontend_dist:

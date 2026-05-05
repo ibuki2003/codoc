@@ -29,6 +29,13 @@ export type StreamChunk =
   | { type: "document_updated"; diff: string }
   | { type: "done" };
 
+export type ModelInfo = { id: string; name: string };
+
+export async function listModels(): Promise<ModelInfo[]> {
+  const res = await fetch(`${BASE}/models`);
+  return res.json();
+}
+
 export async function listProjects(): Promise<ProjectSummary[]> {
   const res = await fetch(`${BASE}/projects`);
   return res.json();

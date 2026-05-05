@@ -9,15 +9,9 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SendIcon from "@mui/icons-material/Send";
 import SaveIcon from "@mui/icons-material/Save";
 import {
-  getProject, updateContent, chatStream,
-  type Project, type ConversationEntry, type StreamChunk,
+  getProject, updateContent, chatStream, listModels,
+  type Project, type ConversationEntry, type StreamChunk, type ModelInfo,
 } from "../api";
-
-const MODELS = [
-  { id: "gpt-4o", label: "GPT-4o" },
-  { id: "o3", label: "o3" },
-  { id: "claude-sonnet", label: "Claude Sonnet" },
-];
 
 type ChatMessage =
   | { role: "user"; content: string }
@@ -44,10 +38,18 @@ export default function ProjectDetail() {
   const [saving, setSaving] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [model, setModel] = useState("gpt-4o");
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [model, setModel] = useState("");
   const [streaming, setStreaming] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const streamingAssistantRef = useRef("");
+
+  useEffect(() => {
+    listModels().then((ms) => {
+      setModels(ms);
+      if (ms.length > 0) setModel(ms[0].id);
+    });
+  }, []);
 
   const loadProject = useCallback(async () => {
     if (!id) return;
@@ -169,8 +171,8 @@ export default function ProjectDetail() {
                 label="Model"
                 onChange={(e) => setModel(e.target.value)}
               >
-                {MODELS.map((m) => (
-                  <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
+                {models.map((m) => (
+                  <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
                 ))}
               </Select>
             </FormControl>
