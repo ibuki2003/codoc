@@ -5,6 +5,7 @@
     "hono/streaming": "npm:hono@^4/streaming",
     "mongodb": "npm:mongodb@^6",
     "openai": "npm:openai@^4",
+    "@openai/agents-core": "npm:@openai/agents@^0.4.5",
     "@openrouter/sdk": "npm:@openrouter/sdk@^0.4",
     "@openrouter/sdk/models": "npm:@openrouter/sdk@^0.4/models",
     "js-yaml": "npm:js-yaml@^4",

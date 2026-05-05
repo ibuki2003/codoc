@@ -3,9 +3,10 @@ import { streamSSE } from "hono/streaming";
 import { projects, ObjectId } from "../db.ts";
 import type { ConversationEntry, AssistantEntry } from "../db.ts";
 import { run_llm } from "../llm.ts";
-import type { Message } from "../llm.ts";
+import type { Message, ToolDefinition } from "../llm.ts";
 import { config, getModel } from "../config.ts";
-import { applyPatch, createPatch } from "diff";
+import { createPatch } from "diff";
+import { applyDiff } from "@openai/agents-core";
 
 const app = new Hono();
 
@@ -84,13 +85,32 @@ app.post("/:id/chat", async (c) => {
   return streamSSE(c, async (stream) => {
     let currentContent = project.content;
 
-    const tools = {
+    const tools: Record<string, ToolDefinition> = {
       edit_document: {
         schema: {
           type: "function" as const,
           function: {
             name: "edit_document",
-            description: "Apply a unified diff to edit the document",
+            description: (
+              "Apply a patch to edit the document.\n" +
+              "Patch should be in V4A format.\n" +
+              "No headers like --- a.txt or +++ b.txt, just the diff hunks.\n" +
+              "Example:\n" +
+              "```diff\n" +
+              "@@ export function validateToken(\n" +
+              " export function validateToken(token: string): boolean {\n" +
+              "-  const decoded = jwt.verify(token, SECRET);\n" +
+              "-  return !!decoded;\n" +
+              "+  try {\n" +
+              "+    const decoded = jwt.verify(token, SECRET);\n" +
+              "+    return !!decoded;\n" +
+              "+  } catch {\n" +
+              "+    logger.warn('Token validation failed');\n" +
+              "+    return false;\n" +
+              "+  }\n" +
+              " }\n" +
+              "```\n"
+            ),
             parameters: {
               type: "object",
               properties: {
@@ -113,7 +133,7 @@ app.post("/:id/chat", async (c) => {
 
           let patched: string | false;
           try {
-            patched = applyPatch(currentContent, diff);
+            patched = applyDiff(currentContent, diff);
           } catch (e) {
             console.log("[edit_document] patch parse error:", (e as Error).message);
             return `Error: patch parse failed: ${(e as Error).message}`;
