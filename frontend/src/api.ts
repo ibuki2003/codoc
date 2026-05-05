@@ -7,17 +7,23 @@ export type ProjectSummary = {
   updatedAt: string;
 };
 
+export type ToolCallRecord = {
+  call_id: string;
+  tool_name: string;
+  args: string;
+  result: string;
+};
+
 export type ConversationEntry =
   | { role: "user"; content: string }
-  | { role: "assistant"; content: string }
-  | { role: "system"; subtype: "diff"; diff: string }
-  | { role: "system"; subtype: "whole"; content: string }
-  | { role: "system"; subtype: "redacted" };
+  | { role: "assistant"; content: string; tool_calls: ToolCallRecord[] }
+  | { role: "system"; subtype: "user_diff"; diff: string };
 
 export type Project = {
   _id: string;
   title: string;
   content: string;
+  lastSyncedContent: string;
   history: ConversationEntry[];
   createdAt: string;
   updatedAt: string;

@@ -15,15 +15,72 @@ import {
 
 const AUTOSAVE_DELAY = 1500;
 
+type Edit = { diff: string; failed: boolean };
+
 type ChatMessage =
   | { role: "user"; content: string }
-  | { role: "assistant"; content: string }
-  | { role: "system"; text: string };
+  | { role: "assistant"; content: string; edits?: Edit[] }
+  | { role: "user_edit"; diff: string };
+
+function parseDiffStats(diff: string) {
+  const lines = diff.split("\n");
+  const added = lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length;
+  const removed = lines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length;
+  return { added, removed };
+}
+
+function DiffWidget({ diff, failed }: { diff: string; failed: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const { added, removed } = parseDiffStats(diff);
+  return (
+    <Box sx={{ mt: 0.5 }}>
+      <Button
+        size="small"
+        variant="outlined"
+        color={failed ? "error" : "inherit"}
+        onClick={() => setExpanded((v) => !v)}
+        sx={{ fontFamily: "monospace", fontSize: "0.7rem", py: 0, px: 0.75, minWidth: 0 }}
+      >
+        {failed ? `edit failed (-${removed} +${added})` : `edit -${removed} +${added}`}
+      </Button>
+      {expanded && (
+        <Box
+          component="pre"
+          sx={{
+            mt: 0.5, p: 1, fontSize: "0.7rem", fontFamily: "monospace",
+            overflowX: "auto", bgcolor: "grey.900", borderRadius: 1,
+            "& .add": { color: "#4caf50" },
+            "& .del": { color: "#f44336" },
+          }}
+        >
+          {diff.split("\n").map((line, i) => (
+            <span
+              key={i}
+              className={line.startsWith("+") && !line.startsWith("+++") ? "add" : line.startsWith("-") && !line.startsWith("---") ? "del" : ""}
+            >
+              {line}{"\n"}
+            </span>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+}
 
 function entryToChat(e: ConversationEntry): ChatMessage | null {
   if (e.role === "user") return { role: "user", content: e.content };
-  if (e.role === "assistant") return { role: "assistant", content: e.content };
-  if (e.role === "system" && e.subtype === "diff") return { role: "system", text: "[Document edited by user]" };
+  if (e.role === "assistant") {
+    const edits: Edit[] = e.tool_calls
+      .filter((tc) => tc.tool_name === "edit_document")
+      .map((tc) => {
+        let diff = "";
+        try { diff = (JSON.parse(tc.args) as { diff: string }).diff; } catch { /* empty */ }
+        return { diff, failed: tc.result.startsWith("Error") };
+      })
+      .filter((e) => e.diff);
+    return { role: "assistant", content: e.content, edits: edits.length ? edits : undefined };
+  }
+  if (e.role === "system" && e.subtype === "user_diff") return { role: "user_edit", diff: e.diff };
   return null;
 }
 
@@ -107,10 +164,22 @@ export default function ProjectDetail() {
         streamingAssistantRef.current += chunk.delta;
         setChatMessages((prev) => {
           const next = [...prev];
-          next[next.length - 1] = { role: "assistant", content: streamingAssistantRef.current };
+          const last = next[next.length - 1];
+          next[next.length - 1] = { ...last, role: "assistant", content: streamingAssistantRef.current } as ChatMessage;
           return next;
         });
       } else if (chunk.type === "document_updated") {
+        setChatMessages((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last.role === "assistant") {
+            next[next.length - 1] = {
+              ...last,
+              edits: [...(last.edits ?? []), { diff: chunk.diff, failed: false }],
+            };
+          }
+          return next;
+        });
         loadProject();
       } else if (chunk.type === "done") {
         loadProject();
@@ -188,7 +257,7 @@ export default function ProjectDetail() {
                   p: 1,
                   bgcolor:
                     msg.role === "user" ? "primary.light" :
-                    msg.role === "system" ? "action.hover" :
+                    msg.role === "user_edit" ? "action.hover" :
                     "background.paper",
                   border: 1,
                   borderColor: "divider",
@@ -197,11 +266,22 @@ export default function ProjectDetail() {
                 }}
               >
                 <Typography variant="caption" color="text.secondary" display="block">
-                  {msg.role === "user" ? "You" : msg.role === "assistant" ? "Assistant" : "System"}
+                  {msg.role === "user" ? "You" : msg.role === "assistant" ? "Assistant" : "Edited"}
                 </Typography>
-                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  {"content" in msg ? msg.content : msg.text}
-                </Typography>
+                {msg.role === "user_edit" ? (
+                  <DiffWidget diff={msg.diff} failed={false} />
+                ) : (
+                  <>
+                    {msg.content && (
+                      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                        {msg.content}
+                      </Typography>
+                    )}
+                    {msg.role === "assistant" && msg.edits?.map((edit, j) => (
+                      <DiffWidget key={j} diff={edit.diff} failed={edit.failed} />
+                    ))}
+                  </>
+                )}
               </Paper>
             ))}
             <div ref={chatEndRef} />

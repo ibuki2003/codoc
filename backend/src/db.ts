@@ -7,23 +7,27 @@ const db = client.db();
 
 export { ObjectId };
 
+export type ToolCallRecord = {
+  call_id: string;
+  tool_name: string;
+  args: string;
+  result: string;
+};
+
 export type UserEntry      = { role: "user"; content: string };
-export type AssistantEntry = { role: "assistant"; content: string };
-export type DiffEntry      = { role: "system"; subtype: "diff"; diff: string };
-export type WholeEntry     = { role: "system"; subtype: "whole"; content: string };
-export type RedactedEntry  = { role: "system"; subtype: "redacted" };
+export type AssistantEntry = { role: "assistant"; content: string; tool_calls: ToolCallRecord[] };
+export type UserDiffEntry  = { role: "system"; subtype: "user_diff"; diff: string };
 
 export type ConversationEntry =
   | UserEntry
   | AssistantEntry
-  | DiffEntry
-  | WholeEntry
-  | RedactedEntry;
+  | UserDiffEntry;
 
 export type Project = {
   _id: ObjectId;
   title: string;
   content: string;
+  lastSyncedContent: string;
   history: ConversationEntry[];
   createdAt: Date;
   updatedAt: Date;
