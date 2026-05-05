@@ -60,6 +60,8 @@ export default function ProjectDetail() {
   const [model, setModel] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [modelSynced, setModelSynced] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleInput, setTitleInput] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("editor");
   const [chatWidth, setChatWidth] = useState(CHAT_WIDTH_DEFAULT);
   const [chatOpenOverride, setChatOpenOverride] = useState<boolean | null>(null);
@@ -137,6 +139,16 @@ export default function ProjectDetail() {
     }, AUTOSAVE_DELAY);
   };
 
+  const handleTitleSave = async () => {
+    if (!id || !titleInput.trim() || titleInput.trim() === project?.title) {
+      setEditingTitle(false);
+      return;
+    }
+    await patchProject(id, { title: titleInput.trim() });
+    setProject((p) => p ? { ...p, title: titleInput.trim() } : p);
+    setEditingTitle(false);
+  };
+
   const handleClearHistory = async () => {
     if (!id) return;
     await clearHistory(id);
@@ -197,7 +209,28 @@ export default function ProjectDetail() {
         <IconButton edge="start" onClick={() => navigate("/")}>
           <ArrowBackIcon />
         </IconButton>
-        <Typography variant="h6" sx={{ flex: 1 }}>{project.title}</Typography>
+        {editingTitle ? (
+          <TextField
+            size="small"
+            value={titleInput}
+            onChange={(e) => setTitleInput(e.target.value)}
+            onBlur={handleTitleSave}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); handleTitleSave(); }
+              if (e.key === "Escape") setEditingTitle(false);
+            }}
+            autoFocus
+            sx={{ flex: 1 }}
+          />
+        ) : (
+          <Typography
+            variant="h6"
+            sx={{ flex: 1, cursor: "text" }}
+            onClick={() => { setTitleInput(project.title); setEditingTitle(true); }}
+          >
+            {project.title}
+          </Typography>
+        )}
         <Typography variant="caption" color="text.secondary">
           {saving ? "Saving…" : "Saved"}
         </Typography>
