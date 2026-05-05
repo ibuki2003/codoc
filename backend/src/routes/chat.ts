@@ -74,8 +74,9 @@ app.post("/:id/chat", async (c) => {
   const modelConfig = getModel(modelId);
 
   // If user edited since last LLM call, record the diff before adding user message
+  // Skip if history is empty — no prior LLM context to diff against
   const lastSyncedContent = project.lastSyncedContent ?? project.content;
-  if (project.content !== lastSyncedContent) {
+  if (project.history.length > 0 && project.content !== lastSyncedContent) {
     const diff = createPatch("doc", lastSyncedContent, project.content);
     const userDiffEntry: ConversationEntry = { role: "system", subtype: "user_diff", diff };
     // deno-lint-ignore no-explicit-any
