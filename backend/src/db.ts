@@ -35,3 +35,8 @@ export type Project = {
 };
 
 export const projects = db.collection<Project>("projects");
+
+export type Settings = {
+  systemPrompt: string;
+};
+export const settingsCollection = db.collection<Settings>("settings");

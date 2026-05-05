@@ -3,16 +3,20 @@ import { useNavigate } from "react-router-dom";
 import {
   Box, Button, Container, Dialog, DialogActions, DialogContent,
   DialogTitle, IconButton, List, ListItem, ListItemButton,
-  ListItemText, TextField, Typography,
+  ListItemText, TextField, Tooltip, Typography,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
-import { listProjects, createProject, deleteProject, type ProjectSummary } from "../api";
+import SettingsIcon from "@mui/icons-material/Settings";
+import { listProjects, createProject, deleteProject, getSettings, updateSettings, type ProjectSummary } from "../api";
 
 export default function ProjectList() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [systemPromptDraft, setSystemPromptDraft] = useState("");
   const navigate = useNavigate();
 
   const load = () => listProjects().then(setProjects);
@@ -32,10 +36,28 @@ export default function ProjectList() {
     load();
   };
 
+  const handleSettingsOpen = async () => {
+    const s = await getSettings();
+    setSystemPrompt(s.systemPrompt);
+    setSystemPromptDraft(s.systemPrompt);
+    setSettingsOpen(true);
+  };
+
+  const handleSettingsSave = async () => {
+    await updateSettings({ systemPrompt: systemPromptDraft });
+    setSystemPrompt(systemPromptDraft);
+    setSettingsOpen(false);
+  };
+
   return (
     <Container maxWidth="md" sx={{ mt: 4 }}>
       <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
         <Typography variant="h4" sx={{ flex: 1 }}>CoDoc</Typography>
+        <Tooltip title="Settings">
+          <IconButton onClick={handleSettingsOpen} sx={{ mr: 1 }}>
+            <SettingsIcon />
+          </IconButton>
+        </Tooltip>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>
           New Project
         </Button>
@@ -82,6 +104,30 @@ export default function ProjectList() {
         <DialogActions>
           <Button onClick={() => setOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={handleCreate}>Create</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Settings</DialogTitle>
+        <DialogContent>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+            System Instruction
+          </Typography>
+          <TextField
+            multiline
+            fullWidth
+            minRows={8}
+            maxRows={20}
+            value={systemPromptDraft}
+            onChange={(e) => setSystemPromptDraft(e.target.value)}
+            placeholder="Enter system instruction for the AI assistant…"
+            sx={{ fontFamily: "monospace" }}
+            slotProps={{ input: { style: { fontFamily: "monospace", fontSize: "0.85rem" } } }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setSystemPromptDraft(systemPrompt); setSettingsOpen(false); }}>Cancel</Button>
+          <Button variant="contained" onClick={handleSettingsSave}>Save</Button>
         </DialogActions>
       </Dialog>
     </Container>

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { projects, ObjectId } from "../db.ts";
+import { projects, settingsCollection, ObjectId } from "../db.ts";
 import type { ConversationEntry, AssistantEntry } from "../db.ts";
 import { run_llm } from "../llm.ts";
 import type { Message, ToolDefinition } from "../llm.ts";
@@ -10,8 +10,8 @@ import { applyDiff } from "@openai/agents-core";
 
 const app = new Hono();
 
-function buildMessages(history: ConversationEntry[], currentContent: string, userMessage: string): Message[] {
-  const msgs: Message[] = [{ role: "system", content: config.system_prompt }];
+function buildMessages(history: ConversationEntry[], currentContent: string, userMessage: string, systemPrompt: string): Message[] {
+  const msgs: Message[] = [{ role: "system", content: systemPrompt }];
 
   // Insert current document right after the last edit so its position stays
   // stable as the conversation grows (good for prefix cache).
@@ -58,7 +58,10 @@ app.post("/:id/chat", async (c) => {
   const project = await projects.findOne({ _id: new ObjectId(id) });
   if (!project) return c.json({ error: "Not found" }, 404);
 
-  const modelId = body.model ?? config.models[0].id;
+  const settingsDoc = await settingsCollection.findOne({});
+  const systemPrompt = settingsDoc?.systemPrompt ?? config.system_prompt;
+
+  const modelId = body.model ?? project.model ?? config.models[0].id;
   const modelConfig = getModel(modelId);
 
   // If user edited since last LLM call, record the diff before adding user message
@@ -160,7 +163,7 @@ app.post("/:id/chat", async (c) => {
       },
     };
 
-    const messages = buildMessages(project.history, project.content, body.message);
+    const messages = buildMessages(project.history, project.content, body.message, systemPrompt);
 
     console.log("[chat] starting LLM, model:", modelConfig.name, "messages:", messages.length);
     for await (const item of run_llm(messages, modelConfig, tools)) {

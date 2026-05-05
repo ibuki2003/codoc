@@ -87,6 +87,19 @@ export async function clearHistory(id: string): Promise<void> {
   await fetch(`${BASE}/projects/${id}/history`, { method: "DELETE" });
 }
 
+export async function getSettings(): Promise<{ systemPrompt: string }> {
+  const res = await fetch(`${BASE}/settings`);
+  return res.json();
+}
+
+export async function updateSettings(settings: { systemPrompt: string }): Promise<void> {
+  await fetch(`${BASE}/settings`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+}
+
 export function chatStream(
   id: string,
   message: string,
