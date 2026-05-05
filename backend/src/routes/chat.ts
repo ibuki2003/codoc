@@ -5,14 +5,13 @@ import type { ConversationEntry, AssistantEntry } from "../db.ts";
 import { run_llm } from "../llm.ts";
 import type { Message } from "../llm.ts";
 import { config, getModel } from "../config.ts";
-import { applyPatch } from "diff";
+import { applyPatch, createPatch } from "diff";
 
 const app = new Hono();
 
-function buildMessages(history: ConversationEntry[], currentContent: string): Message[] {
+function buildMessages(history: ConversationEntry[]): Message[] {
   const msgs: Message[] = [{ role: "system", content: config.system_prompt }];
 
-  // Find the index of the last "whole" entry in history
   let lastWholeIdx = -1;
   for (let i = history.length - 1; i >= 0; i--) {
     const e = history[i];
@@ -20,11 +19,6 @@ function buildMessages(history: ConversationEntry[], currentContent: string): Me
       lastWholeIdx = i;
       break;
     }
-  }
-
-  // If no whole entry exists, inject current document at the start
-  if (lastWholeIdx === -1) {
-    msgs.push({ role: "system", content: `Current document:\n${currentContent}` });
   }
 
   for (let i = 0; i < history.length; i++) {
@@ -61,6 +55,33 @@ app.post("/:id/chat", async (c) => {
   const modelId = body.model ?? config.models[0].id;
   const modelConfig = getModel(modelId);
 
+  // Find content recorded at last LLM call (last whole entry)
+  let lastRecordedContent = "";
+  for (let i = project.history.length - 1; i >= 0; i--) {
+    const e = project.history[i];
+    if (e.role === "system" && e.subtype === "whole") {
+      lastRecordedContent = e.content;
+      break;
+    }
+  }
+
+  // If user edited since last LLM call, record the change before adding user message
+  if (project.content !== lastRecordedContent) {
+    const entriesToAdd: ConversationEntry[] = [];
+    if (lastRecordedContent !== "") {
+      const diff = createPatch("doc", lastRecordedContent, project.content);
+      entriesToAdd.push({ role: "system", subtype: "diff", diff });
+    }
+    entriesToAdd.push({ role: "system", subtype: "whole", content: project.content });
+
+    // deno-lint-ignore no-explicit-any
+    await (projects as any).updateOne(
+      { _id: new ObjectId(id) },
+      { $push: { history: { $each: entriesToAdd } } },
+    );
+    project.history.push(...entriesToAdd);
+  }
+
   // Add user entry to history
   const userEntry = { role: "user" as const, content: body.message };
   // deno-lint-ignore no-explicit-any
@@ -68,7 +89,6 @@ app.post("/:id/chat", async (c) => {
     { _id: new ObjectId(id) },
     { $push: { history: userEntry }, $set: { updatedAt: new Date() } },
   );
-
   project.history.push(userEntry);
 
   return streamSSE(c, async (stream) => {
@@ -99,12 +119,17 @@ app.post("/:id/chat", async (c) => {
             return "Error: invalid JSON args";
           }
 
-          const patched = applyPatch(currentContent, diff);
+          let patched: string | false;
+          try {
+            patched = applyPatch(currentContent, diff);
+          } catch (e) {
+            return `Error: patch parse failed: ${(e as Error).message}`;
+          }
           if (patched === false) {
-            return "Error: patch failed to apply";
+            return "Error: patch did not apply cleanly";
           }
 
-          currentContent = patched as string;
+          currentContent = patched;
 
           const diffEntry = { role: "system" as const, subtype: "diff" as const, diff };
           const wholeEntry = { role: "system" as const, subtype: "whole" as const, content: currentContent };
@@ -127,7 +152,7 @@ app.post("/:id/chat", async (c) => {
       },
     };
 
-    const messages = buildMessages(project.history, currentContent);
+    const messages = buildMessages(project.history);
 
     for await (const item of run_llm(messages, modelConfig, tools)) {
       if (item.type === "text_delta") {

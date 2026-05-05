@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  Box, Button, CircularProgress, Container, Divider, FormControl,
+  Box, Button, CircularProgress, Divider, FormControl,
   IconButton, InputLabel, MenuItem, Paper, Select, TextField,
-  Toolbar, Typography,
+  Toolbar, Tooltip, Typography,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SendIcon from "@mui/icons-material/Send";
-import SaveIcon from "@mui/icons-material/Save";
+import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import {
-  getProject, updateContent, chatStream, listModels,
+  getProject, updateContent, chatStream, listModels, clearHistory,
   type Project, type ConversationEntry, type StreamChunk, type ModelInfo,
 } from "../api";
+
+const AUTOSAVE_DELAY = 1500;
 
 type ChatMessage =
   | { role: "user"; content: string }
@@ -21,11 +23,7 @@ type ChatMessage =
 function entryToChat(e: ConversationEntry): ChatMessage | null {
   if (e.role === "user") return { role: "user", content: e.content };
   if (e.role === "assistant") return { role: "assistant", content: e.content };
-  if (e.role === "system") {
-    if (e.subtype === "diff") return { role: "system", text: `[Document edited]` };
-    if (e.subtype === "whole") return null;
-    if (e.subtype === "redacted") return null;
-  }
+  if (e.role === "system" && e.subtype === "diff") return { role: "system", text: "[Document edited by user]" };
   return null;
 }
 
@@ -34,7 +32,6 @@ export default function ProjectDetail() {
   const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
   const [content, setContent] = useState("");
-  const [contentDirty, setContentDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -43,6 +40,7 @@ export default function ProjectDetail() {
   const [streaming, setStreaming] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const streamingAssistantRef = useRef("");
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     listModels().then((ms) => {
@@ -56,7 +54,6 @@ export default function ProjectDetail() {
     const p = await getProject(id);
     setProject(p);
     setContent(p.content);
-    setContentDirty(false);
     setChatMessages(
       p.history.map(entryToChat).filter((m): m is ChatMessage => m !== null),
     );
@@ -78,12 +75,21 @@ export default function ProjectDetail() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  const handleSave = async () => {
+  const handleContentChange = (value: string) => {
+    setContent(value);
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(async () => {
+      if (!id) return;
+      setSaving(true);
+      await updateContent(id, value);
+      setSaving(false);
+    }, AUTOSAVE_DELAY);
+  };
+
+  const handleClearHistory = async () => {
     if (!id) return;
-    setSaving(true);
-    await updateContent(id, content);
-    setSaving(false);
-    setContentDirty(false);
+    await clearHistory(id);
+    setChatMessages([]);
   };
 
   const handleSend = async () => {
@@ -129,15 +135,9 @@ export default function ProjectDetail() {
           <ArrowBackIcon />
         </IconButton>
         <Typography variant="h6" sx={{ flex: 1 }}>{project.title}</Typography>
-        <Button
-          startIcon={<SaveIcon />}
-          variant={contentDirty ? "contained" : "outlined"}
-          disabled={!contentDirty || saving}
-          onClick={handleSave}
-          size="small"
-        >
-          {saving ? "Saving…" : "Save"}
-        </Button>
+        <Typography variant="caption" color="text.secondary">
+          {saving ? "Saving…" : "Saved"}
+        </Typography>
       </Toolbar>
 
       <Box sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
@@ -150,7 +150,7 @@ export default function ProjectDetail() {
             multiline
             fullWidth
             value={content}
-            onChange={(e) => { setContent(e.target.value); setContentDirty(true); }}
+            onChange={(e) => handleContentChange(e.target.value)}
             sx={{ flex: 1, "& .MuiInputBase-root": { height: "100%", alignItems: "flex-start" } }}
             inputProps={{ style: { fontFamily: "monospace", height: "100%", overflowY: "auto" } }}
           />
@@ -166,16 +166,17 @@ export default function ProjectDetail() {
             </Typography>
             <FormControl size="small" sx={{ minWidth: 140 }}>
               <InputLabel>Model</InputLabel>
-              <Select
-                value={model}
-                label="Model"
-                onChange={(e) => setModel(e.target.value)}
-              >
+              <Select value={model} label="Model" onChange={(e) => setModel(e.target.value)}>
                 {models.map((m) => (
                   <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
                 ))}
               </Select>
             </FormControl>
+            <Tooltip title="Clear history">
+              <IconButton size="small" onClick={handleClearHistory} disabled={streaming}>
+                <DeleteSweepIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Box>
 
           <Box sx={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 1, mb: 1 }}>
@@ -198,10 +199,7 @@ export default function ProjectDetail() {
                 <Typography variant="caption" color="text.secondary" display="block">
                   {msg.role === "user" ? "You" : msg.role === "assistant" ? "Assistant" : "System"}
                 </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-                >
+                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                   {"content" in msg ? msg.content : msg.text}
                 </Typography>
               </Paper>
@@ -223,11 +221,7 @@ export default function ProjectDetail() {
               multiline
               maxRows={4}
             />
-            <IconButton
-              color="primary"
-              onClick={handleSend}
-              disabled={streaming || !input.trim()}
-            >
+            <IconButton color="primary" onClick={handleSend} disabled={streaming || !input.trim()}>
               {streaming ? <CircularProgress size={24} /> : <SendIcon />}
             </IconButton>
           </Box>

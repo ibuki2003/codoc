@@ -67,6 +67,10 @@ export async function deleteProject(id: string): Promise<void> {
   await fetch(`${BASE}/projects/${id}`, { method: "DELETE" });
 }
 
+export async function clearHistory(id: string): Promise<void> {
+  await fetch(`${BASE}/projects/${id}/history`, { method: "DELETE" });
+}
+
 export function chatStream(
   id: string,
   message: string,

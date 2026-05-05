@@ -43,6 +43,16 @@ app.patch("/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+app.delete("/:id/history", async (c) => {
+  const id = c.req.param("id");
+  const result = await projects.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { history: [], updatedAt: new Date() } },
+  );
+  if (result.matchedCount === 0) return c.json({ error: "Not found" }, 404);
+  return c.json({ ok: true });
+});
+
 app.delete("/:id", async (c) => {
   const id = c.req.param("id");
   const result = await projects.deleteOne({ _id: new ObjectId(id) });
