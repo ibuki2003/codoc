@@ -51,6 +51,7 @@ export default function ProjectDetail() {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const isTouchPrimary = useMediaQuery("(pointer: coarse)");
 
   const [project, setProject] = useState<Project | null>(null);
   const [content, setContent] = useState("");
@@ -214,7 +215,7 @@ export default function ProjectDetail() {
   }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+    <Box sx={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column" }}>
       <Toolbar variant="dense" sx={{ borderBottom: 1, borderColor: "divider", gap: 1 }}>
         <IconButton edge="start" onClick={() => navigate("/")}>
           <ArrowBackIcon />
@@ -375,7 +376,7 @@ export default function ProjectDetail() {
                   if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) {
                     return;
                   }
-                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                  if (e.key === "Enter" && !e.shiftKey && !isTouchPrimary) { e.preventDefault(); handleSend(); }
                 }}
                 disabled={streaming}
                 multiline
