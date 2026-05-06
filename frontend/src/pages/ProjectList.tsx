@@ -50,6 +50,7 @@ export default function ProjectList() {
   };
 
   return (
+    <Box sx={{ height: "100dvh", overflowY: "auto" }}>
     <Container maxWidth="md" sx={{ mt: 4 }}>
       <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
         <Typography variant="h4" sx={{ flex: 1 }}>CoDoc</Typography>
@@ -131,5 +132,6 @@ export default function ProjectList() {
         </DialogActions>
       </Dialog>
     </Container>
+    </Box>
   );
 }
