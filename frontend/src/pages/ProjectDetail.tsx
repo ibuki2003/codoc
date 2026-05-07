@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControl,
@@ -18,7 +18,9 @@ import {
   getProject, updateContent, patchProject, chatStream, listModels, clearHistory,
   type Project, type ConversationEntry, type StreamChunk, type ModelInfo,
 } from "../api";
+import { structuredPatch } from "diff";
 import MarkdownPreview from "../components/MarkdownPreview";
+import SideBySideDiff from "../components/SideBySideDiff";
 import ChatMessageItem from "../components/ChatMessageItem";
 import type { ChatMessage } from "../components/ChatMessageItem";
 
@@ -78,6 +80,22 @@ export default function ProjectDetail() {
   useEffect(() => { setChatOpenOverride(null); }, [isMobile]);
 
   const chatOpen = chatOpenOverride !== null ? chatOpenOverride : !isMobile;
+
+  const [diffModalOpen, setDiffModalOpen] = useState(false);
+
+  const diffStats = useMemo(() => {
+    if (!project) return null;
+    const base = project.lastSyncedContent ?? "";
+    if (base === content) return null;
+    let added = 0, removed = 0;
+    for (const hunk of structuredPatch("", "", base, content).hunks) {
+      for (const line of hunk.lines) {
+        if (line[0] === "+") added++;
+        else if (line[0] === "-") removed++;
+      }
+    }
+    return { added, removed };
+  }, [project, content]);
 
   const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -364,6 +382,17 @@ export default function ProjectDetail() {
               <div ref={chatEndRef} />
             </Box>
 
+            {diffStats && (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => setDiffModalOpen(true)}
+                sx={{ mb: 0.5, fontSize: "0.72rem", alignSelf: "flex-start" }}
+              >
+                +{diffStats.added} / -{diffStats.removed} lines edited
+              </Button>
+            )}
+
             <Box sx={{ display: "flex", gap: 1 }}>
               <TextField
                 fullWidth
@@ -389,6 +418,16 @@ export default function ProjectDetail() {
           </Box>
         )}
       </Box>
+
+      <Dialog open={diffModalOpen} onClose={() => setDiffModalOpen(false)} fullWidth maxWidth="lg">
+        <DialogTitle>Pending Edits</DialogTitle>
+        <DialogContent sx={{ p: 0, overflow: "auto" }}>
+          {project && <SideBySideDiff oldContent={project.lastSyncedContent ?? ""} newContent={content} />}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDiffModalOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={localInstructionOpen} onClose={() => setLocalInstructionOpen(false)} fullWidth maxWidth="md">
         <DialogTitle>Project Instruction</DialogTitle>
