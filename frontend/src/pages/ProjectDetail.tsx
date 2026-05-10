@@ -75,6 +75,7 @@ export default function ProjectDetail() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const streamingAssistantRef = useRef("");
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevChatLengthRef = useRef(0);
 
   // On breakpoint change, reset the override so default behavior (open on desktop, closed on mobile) resumes
   useEffect(() => { setChatOpenOverride(null); }, [isMobile]);
@@ -147,8 +148,12 @@ export default function ProjectDetail() {
   }, [loadProject]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
+    const shouldScroll = streaming || chatMessages.length > prevChatLengthRef.current;
+    prevChatLengthRef.current = chatMessages.length;
+    if (shouldScroll) {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages, streaming]);
 
   const handleContentChange = (value: string) => {
     setContent(value);
